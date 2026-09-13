@@ -1,0 +1,93 @@
+# RAGAS integration — install in its OWN virtualenv, separate from
+# requirements.txt. Do not add ragas to the main backend venv.
+#
+# Why: `ragas` needs a `langchain`/`langchain-community`/`langchain-core`
+# /`langchain-openai` chain that is incompatible with the
+# `langgraph`/`langchain-core` versions this project is correctly pinned
+# to for the actual RAG pipeline (`app/rag/graph.py`) — `langgraph>=0.2`
+# needs a MUCH newer `langchain-core` than `ragas` needs. Two separate,
+# individually-consistent dependency trees; no single venv satisfies both.
+#
+# **Phase 7 completion pass — VERIFIED, working pin set below** (this
+# supersedes an earlier version of this file that documented the
+# conflict but had not actually found a working combination). Verified
+# for real in a sandbox with PyPI access (but no Groq/Gemini network
+# access — so this verifies the import/construction chain, not a live
+# scored evaluation):
+#   python3 -m venv .venv-ragas && .venv-ragas/bin/pip install -r requirements-ragas.txt
+#   then `from ragas import SingleTurnSample`, `from ragas.metrics import
+#   Faithfulness, ResponseRelevancy, LLMContextPrecisionWithoutReference,
+#   LLMContextRecall`, `from ragas.llms import LangchainLLMWrapper`,
+#   `from ragas.embeddings.base import LangchainEmbeddingsWrapper`, `from
+#   langchain_groq import ChatGroq` — every one of these (exactly what
+#   `app/evaluation/ragas_metrics.py` imports) succeeds, `pip check`
+#   reports no broken requirements, and every RAGAS class
+#   `ragas_metrics.py` actually constructs (`Faithfulness(llm=...)`,
+#   `ResponseRelevancy(llm=..., embeddings=...)`,
+#   `LLMContextPrecisionWithoutReference(llm=...)`,
+#   `LLMContextRecall(llm=...)`, `SingleTurnSample(...)`,
+#   `LangchainEmbeddingsWrapper(<custom embedder>)`) was constructed
+#   successfully with dummy (non-network) LLM/embedder objects, and
+#   `Faithfulness.single_turn_score` confirmed synchronous (not a
+#   coroutine — matches `ragas_metrics.py`'s un-awaited call site).
+#
+# **What was NOT verified** (and could not be, with no network access to
+# the Groq/Gemini APIs): an actual `metric.single_turn_score(sample)`
+# call, which needs a real LLM response. The import/construction chain —
+# the part that was previously broken — is confirmed fixed; the first
+# real scored evaluation is still this pin set's first real end-to-end
+# test, to be run wherever GROQ_API_KEY/GEMINI_API_KEY + network access
+# are both available.
+#
+# How this combination was found: `ragas`'s own declared dependencies
+# resolve, by default, to the LATEST compatible `langchain-community`
+# (0.4.x), which no longer has the `langchain_community.chat_models.
+# vertexai` module `ragas`'s own `ragas/llms/base.py` unconditionally
+# imports (that submodule moved to a separate `langchain-google-vertexai`
+# package upstream) — `import ragas` itself fails with
+# `ModuleNotFoundError: No module named
+# 'langchain_community.chat_models.vertexai'` regardless of ragas
+# version (reproduced on both 0.4.3 and 0.2.15). Pinning
+# `langchain-community` back to a version that still has that module
+# (0.2.19) requires pinning `langchain-core`/`langchain` down to match
+# it, which in turn requires downgrading `langchain-openai` (ragas's own
+# hard dependency) to a version built against that older
+# `langchain-core` — otherwise `langchain_openai.chat_models.base` fails
+# importing `ContextOverflowError` from `langchain_core.exceptions`
+# (only present in newer langchain-core). The pins below are exactly
+# that consistent, older-generation langchain stack.
+#
+# A SECOND bug was found and fixed in app/evaluation/ragas_metrics.py
+# alongside this: `_wrapped_embeddings()` called
+# `embedding_factory(_EmbedderAdapter())`, but ragas's real
+# `embedding_factory()` (verified via `inspect.getsource`) ALWAYS builds
+# an `OpenAIEmbeddings` client — it does not accept a custom adapter at
+# all, and would raise a pydantic validation error the moment it's
+# called. The correct wrapper for a custom (non-OpenAI) embeddings
+# object is `ragas.embeddings.base.LangchainEmbeddingsWrapper`, which
+# DOES accept any object implementing `embed_query`/`embed_documents`
+# (exactly what `_EmbedderAdapter` implements) — verified working.
+ragas==0.2.15
+langchain==0.2.17
+langchain-community==0.2.19
+langchain-core==0.2.43
+langchain-openai==0.1.25
+langchain-groq==0.1.10
+
+# `app/evaluation/ragas_metrics.py` imports `ragas` lazily, inside its
+# functions, specifically so the main app (`app/main.py`, and every other
+# module) can be imported and run with ONLY requirements.txt installed —
+# RAGAS unavailability degrades to a clear, typed error from that one
+# module, not an app-wide import failure.
+#
+# This venv also needs a handful of the main app's own dependencies
+# (app.core.config, app.clients — NOT app.rag.graph/langgraph, which is
+# exactly the part that conflicts) since ragas_metrics.py reuses the
+# project's real Settings/Embedder rather than re-implementing config
+# loading: pydantic-settings, google-genai, groq, pinecone, numpy,
+# python-dotenv. Install these too:
+#   .venv-ragas/bin/pip install pydantic-settings "google-genai>=1.0,<2.0" groq pinecone numpy python-dotenv
+# Deliberately NOT `pip install -r requirements.txt` — that would
+# reintroduce the exact langgraph/langchain-core conflict this file
+# exists to avoid (requirements.txt pins langchain-core>=0.3, which is
+# incompatible with the langchain-core==0.2.43 pinned above).

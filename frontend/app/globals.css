@@ -1,0 +1,121 @@
+@import "tailwindcss";
+@import "@fontsource-variable/fraunces";
+@import "@fontsource-variable/inter";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+
+/* ============================================================
+   Veridoc design tokens — "ink & brass ledger"
+
+   The product's whole value proposition is provenance: every answer
+   traces back to an exact page, table cell, or OCR region with a
+   confidence score. The visual language leans into that — dark,
+   archival "ledger" surfaces, a brass/stamp accent for evidence and
+   verified state, monospace for anything that's a precise, checkable
+   value (page numbers, confidence %, chunk ids, file sizes).
+   ============================================================ */
+
+:root {
+  --color-ink-950: #0b0d12;
+  --color-ink-900: #12151b;
+  --color-ink-800: #171b24;
+  --color-ink-700: #20242f;
+  --color-ink-600: #2c3140;
+  --color-ink-500: #3a4054;
+
+  --color-paper: #eae4d6;
+  --color-paper-dim: #b9b3a2;
+  --color-muted: #8b93a6;
+
+  --color-brass: #c7913e;
+  --color-brass-soft: #dcb271;
+  --color-brass-dim: #7a5f34;
+
+  --color-teal: #4fa88f;
+  --color-teal-dim: #2c5349;
+
+  --color-rust: #c1554b;
+  --color-rust-dim: #5b2c27;
+}
+
+@theme inline {
+  --color-ink-950: var(--color-ink-950);
+  --color-ink-900: var(--color-ink-900);
+  --color-ink-800: var(--color-ink-800);
+  --color-ink-700: var(--color-ink-700);
+  --color-ink-600: var(--color-ink-600);
+  --color-ink-500: var(--color-ink-500);
+
+  --color-paper: var(--color-paper);
+  --color-paper-dim: var(--color-paper-dim);
+  --color-muted: var(--color-muted);
+
+  --color-brass: var(--color-brass);
+  --color-brass-soft: var(--color-brass-soft);
+  --color-brass-dim: var(--color-brass-dim);
+
+  --color-teal: var(--color-teal);
+  --color-teal-dim: var(--color-teal-dim);
+
+  --color-rust: var(--color-rust);
+  --color-rust-dim: var(--color-rust-dim);
+
+  --font-display: "Fraunces Variable", "Iowan Old Style", serif;
+  --font-sans: "Inter Variable", -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", monospace;
+}
+
+* {
+  border-color: var(--color-ink-600);
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--color-ink-950);
+  color: var(--color-paper);
+  font-family: var(--font-sans);
+}
+
+::selection {
+  background: var(--color-brass-dim);
+  color: var(--color-paper);
+}
+
+/* Thin, warm scrollbars that match the ledger surfaces instead of the
+   browser default. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-ink-500) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--color-ink-500);
+  border-radius: 4px;
+}
+
+@keyframes stamp-in {
+  from {
+    opacity: 0;
+    transform: scale(1.15) rotate(-3deg);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) rotate(-2deg);
+  }
+}
+.animate-stamp-in {
+  animation: stamp-in 240ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}

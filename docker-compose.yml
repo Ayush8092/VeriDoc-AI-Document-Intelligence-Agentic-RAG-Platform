@@ -1,0 +1,231 @@
+# Phase 5 completion pass, round 2, item 15 ("Docker + Docker Compose").
+#
+# Brings up the full stack: Postgres (metadata DB), a one-shot migration
+# step, the backend API, the background ingestion worker
+# (app.services.ingestion_jobs.worker — see that module's docstring for
+# why this is a separate long-running process rather than in-process
+# with the API), and the frontend.
+#
+# FREE/LOCAL MODE BY DEFAULT — see backend/README.md's "Run Veridoc for
+# $0" section. Nothing below requires a paid account:
+#   - Vector store: VECTORSTORE_BACKEND=local (the default — see
+#     app/core/config.py's Settings.vectorstore_backend and
+#     app/vectorstore_local.py) persists vectors to a local JSON file.
+#     No Pinecone account or PINECONE_API_KEY needed. Set
+#     VECTORSTORE_BACKEND=pinecone in backend/.env to opt into managed
+#     Pinecone instead.
+#   - Storage: STORAGE_BACKEND=local (the default — app/storage/local.py)
+#     writes uploaded files to the local `backend-data` volume. No S3/
+#     MinIO account needed. Set STORAGE_BACKEND=s3 to opt into
+#     S3-compatible storage instead (see the commented `minio` service
+#     below, for local S3-compatible integration testing).
+#   - Rate limiting: RATE_LIMIT_BACKEND=memory (the default — see
+#     below) needs no Redis. Redis is deliberately OPTIONAL and NOT
+#     included as a service here — app/core/rate_limit.py's in-memory
+#     limiter works fine for this compose file's single-replica-per
+#     -service topology; a real multi-replica production deployment
+#     that needs a shared rate-limit window should set
+#     RATE_LIMIT_REDIS_URL to point at whatever Redis it already runs
+#     (uncomment the `redis` service below for local testing of that
+#     path — genuinely untested against a live instance in the
+#     environment this file was authored in, see
+#     app/core/rate_limit.py's module docstring).
+#   - Database: PostgreSQL, run locally via the `postgres` service below
+#     (also free — no managed-database account needed). SQLite
+#     (DATABASE_URL=sqlite:///./data/veridoc.db) is fine for local dev
+#     outside Docker but is not used by this compose file.
+#
+# The ONLY credentials this stack can genuinely benefit from are the AI
+# provider keys (GROQ_API_KEY/GEMINI_API_KEY) for /ask and ingestion to
+# produce real answers — and both have usable free tiers (see
+# backend/.env.example). The stack starts and serves /health and /ready
+# with NONE of GROQ_API_KEY/GEMINI_API_KEY/PINECONE_API_KEY set at all
+# (every provider client is constructed lazily — see app/clients.py),
+# and with the default local vector/storage/rate-limit backends above,
+# PINECONE_API_KEY is never read in the first place.
+#
+# Usage:
+#   cp backend/.env.example backend/.env   # fill in GROQ_API_KEY/GEMINI_API_KEY for real answers
+#   docker compose up --build
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: veridoc
+      POSTGRES_PASSWORD: veridoc
+      POSTGRES_DB: veridoc
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U veridoc"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "5432:5432"
+
+  # Optional — see the note at the top of this file. Uncomment to test
+  # RATE_LIMIT_REDIS_URL locally.
+  # redis:
+  #   image: redis:7-alpine
+  #   ports:
+  #     - "6379:6379"
+
+  # --------------------------------------------------------------
+  # Integration-test-only services (Phase 5 completion pass, final
+  # round, items 3/6): a real Redis and a real S3-compatible endpoint
+  # (MinIO) to run tests/test_rate_limit_redis_integration.py and
+  # tests/test_storage_minio_integration.py against — see those files'
+  # module docstrings. Behind the "integration-test" Compose profile so
+  # a plain `docker compose up` (no --profile flag) never starts them —
+  # the default stack's behavior is completely unchanged by their
+  # presence here.
+  #
+  #   docker compose --profile integration-test up -d redis minio minio-init
+  #   cd backend
+  #   VERIDOC_TEST_REDIS_URL=redis://localhost:6380/0 \
+  #   VERIDOC_TEST_S3_ENDPOINT_URL=http://localhost:9000 \
+  #   VERIDOC_TEST_S3_BUCKET=veridoc-test \
+  #   VERIDOC_TEST_S3_ACCESS_KEY=minioadmin \
+  #   VERIDOC_TEST_S3_SECRET_KEY=minioadmin \
+  #       pytest tests/test_rate_limit_redis_integration.py tests/test_storage_minio_integration.py -v
+  # --------------------------------------------------------------
+
+  redis:
+    image: redis:7-alpine
+    profiles: ["integration-test"]
+    ports:
+      # Deliberately mapped to a non-default HOST port (6380, not 6379)
+      # so this can run alongside a developer's own local Redis (e.g.
+      # one used by an unrelated project) without a port clash. The
+      # container's own internal port is still the Redis default.
+      - "6380:6379"
+
+  minio:
+    image: minio/minio:latest
+    profiles: ["integration-test"]
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"  # web console, optional to use
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # One-shot: creates the "veridoc-test" bucket the integration test
+  # expects, then exits. Re-running it (e.g. after `docker compose down
+  # -v`) is safe — `mc mb --ignore-existing` never fails if the bucket
+  # is already there.
+  minio-init:
+    image: minio/mc:latest
+    profiles: ["integration-test"]
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 minioadmin minioadmin &&
+      mc mb --ignore-existing local/veridoc-test
+      "
+    restart: "no"
+
+  migrate:
+    build:
+      context: ./backend
+    command: ["alembic", "upgrade", "head"]
+    environment: &backend-env
+      DATABASE_URL: postgresql+psycopg2://veridoc:veridoc@postgres:5432/veridoc
+      VECTORSTORE_BACKEND: local
+      LOCAL_VECTOR_INDEX_PATH: /app/data/vector_index
+      STORAGE_BACKEND: local
+      STORAGE_LOCAL_ROOT: /app/data
+      CORPUS_DIR: /app/data/corpus
+      UPLOAD_DIR: /app/data/uploads
+      LEXICAL_INDEX_PATH: /app/data/lexical_index.json
+      CORS_ALLOW_ORIGINS: '["http://localhost:3000"]'
+    env_file:
+      - ./backend/.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - backend-data:/app/data
+    # This service's whole job is to run once and exit 0 — it is NOT
+    # meant to be "up" long-term. `backend`/`worker` below wait on it via
+    # `service_completed_successfully`.
+    restart: "no"
+
+  backend:
+    build:
+      context: ./backend
+    environment:
+      <<: *backend-env
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+      API_RELOAD: "false"
+    env_file:
+      - ./backend/.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    volumes:
+      - backend-data:/app/data
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # Background ingestion job worker (app.services.ingestion_jobs.worker)
+  # — polls for QUEUED/RETRYING IngestionJob rows and processes them.
+  # Same image as `backend`, different command; see
+  # app/services/ingestion_jobs.py's module docstring for the SQLite
+  # -single-worker caveat this compose file avoids entirely by using
+  # Postgres here (DATABASE_URL above), which supports the
+  # `SELECT ... FOR UPDATE SKIP LOCKED`-style safe concurrent claiming a
+  # real multi-worker deployment needs — see that module for exactly
+  # what's verified vs. not.
+  worker:
+    build:
+      context: ./backend
+    command: ["python", "-m", "app.services.ingestion_jobs"]
+    environment: *backend-env
+    env_file:
+      - ./backend/.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    volumes:
+      - backend-data:/app/data
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  backend-data:
+  minio-data:

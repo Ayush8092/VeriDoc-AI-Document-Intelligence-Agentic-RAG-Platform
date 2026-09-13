@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+.venv/
+venv/
+.env
+data/uploads/*
+!data/uploads/.gitkeep
+data/veridoc.db
+data/lexical_index.json
+data/page_images/
+data/trulens.sqlite
+.git/
+.gitignore

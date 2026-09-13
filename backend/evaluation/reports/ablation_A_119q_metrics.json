@@ -1,0 +1,76 @@
+{
+  "PARTIAL_RUN_NOTICE": "This report is based on 119 COMPLETED questions only. It is not the full benchmark. No result for an incomplete question was estimated, interpolated, or fabricated — every number below is computed directly and only from the questions that actually finished.",
+  "config": "A",
+  "checkpoint_source": "evaluation\\reports\\ablation_A.checkpoint.json",
+  "n_completed": 119,
+  "target_total": 300,
+  "completion_note": "119 of 300 planned questions completed",
+  "generated_at": "2026-09-01T16:10:45.476248+00:00",
+  "summary": {
+    "n_questions": 119,
+    "grounded_answer_rate": null,
+    "refusal_accuracy": 0.916,
+    "answerable_sensitivity": 0.934,
+    "unanswerable_specificity": 0.7692,
+    "correct_answer_rate": 0.8113,
+    "citation_precision": null,
+    "citation_recall": 0.8302,
+    "claim_grounding_rate": null,
+    "unsupported_claim_rate": null,
+    "hallucination_rate": null,
+    "retrieval": {
+      "recall@1": 0.6973,
+      "precision@1": 0.7736,
+      "hit_rate@1": 0.7736,
+      "ndcg@1": 0.7736,
+      "recall@3": 0.8813,
+      "precision@3": 0.3427,
+      "hit_rate@3": 0.9245,
+      "ndcg@3": 0.8334,
+      "recall@5": 0.9151,
+      "precision@5": 0.2208,
+      "hit_rate@5": 0.9245,
+      "ndcg@5": 0.8488,
+      "recall@10": 0.9198,
+      "precision@10": 0.1113,
+      "hit_rate@10": 0.9245,
+      "ndcg@10": 0.8507,
+      "mrr": 0.8428
+    },
+    "usage": {
+      "status": "MEASURED",
+      "n_llm_calls": 478,
+      "total_prompt_tokens": 569554,
+      "total_completion_tokens": 78090,
+      "total_tokens": 647644,
+      "total_cost_usd": 0.066408,
+      "by_purpose": {
+        "answer": {
+          "n_calls": 102,
+          "total_tokens": 161001,
+          "total_cost_usd": 0.016691
+        },
+        "embed": {
+          "n_calls": 202,
+          "total_tokens": 3259,
+          "total_cost_usd": 0.000502
+        },
+        "grade": {
+          "n_calls": 146,
+          "total_tokens": 467851,
+          "total_cost_usd": 0.046275
+        },
+        "rewrite": {
+          "n_calls": 28,
+          "total_tokens": 15533,
+          "total_cost_usd": 0.00294
+        }
+      },
+      "cost_is_estimated_not_billed": true
+    },
+    "ttft": {
+      "status": "NOT_APPLICABLE",
+      "reason": "mark_first_token() is only called from app/api/ask_stream.py (the streaming endpoint) — TTFT has no meaning for DocumentQAService.ask()'s synchronous, non-streaming call shape, which is what the benchmark runners use."
+    }
+  }
+}

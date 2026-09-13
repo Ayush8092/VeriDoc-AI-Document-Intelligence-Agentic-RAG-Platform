@@ -1,0 +1,153 @@
+# Phase 5 completion pass, round 4, item 7 ("CI/CD").
+#
+# Three independent jobs, matching this project's own two deployable
+# halves plus its container definitions:
+#   backend  - install deps, run real Alembic migrations against a real
+#              PostgreSQL service container (not SQLite-only — this is
+#              deliberately the more faithful check: a real, previously
+#              -caught bug in this project's baseline migration (a
+#              documents<->document_versions FK creation-order cycle)
+#              only breaks on PostgreSQL's strict FK enforcement, not
+#              SQLite's default unenforced FKs, so SQLite alone would
+#              have silently missed it), `alembic check` for model/
+#              migration drift, then the full pytest suite.
+#   frontend - npm ci, lint, build.
+#   docker   - `docker compose config` (syntax + interpolation
+#              validation, no services started) and a real `docker build`
+#              of both images (not just a Dockerfile syntax linter) —
+#              catches an actually-broken Dockerfile, not just a
+#              plausible-looking one.
+#
+# No external secrets required (spec: "do not require external secrets
+# for ordinary CI tests"). GEMINI_API_KEY/GROQ_API_KEY/PINECONE_API_KEY
+# are left unset — every provider client in this codebase is constructed
+# lazily (see app/clients.py) and the test suite's fakes/mocks never
+# call a real provider, so tests genuinely don't need them. JWT_SECRET_KEY
+# is set to a CI-only placeholder that is neither the insecure code
+# default nor a real secret (see app/security/auth.py's
+# assert_secret_is_safe_for_environment for why this matters if
+# ENVIRONMENT=production were ever set here, which it deliberately is
+# not — CI runs with the default, permissive "development" environment).
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Shared, non-secret placeholder values — see header comment.
+  JWT_SECRET_KEY: ci-only-placeholder-secret-not-for-real-use-0123456789
+  GEMINI_API_KEY: ""
+  GROQ_API_KEY: ""
+  PINECONE_API_KEY: ""
+
+jobs:
+  backend:
+    name: Backend (pytest + Alembic against PostgreSQL)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: veridoc
+          POSTGRES_PASSWORD: veridoc
+          POSTGRES_DB: veridoc_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U veridoc"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql+psycopg2://veridoc:veridoc@localhost:5432/veridoc_ci
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
+
+      # Tesseract + poppler: the two system packages app/documents/ocr/*
+      # actually shells out to (see backend/Dockerfile's own comment for
+      # the same package list) — needed for the OCR/scanned-PDF parts of
+      # the test suite to exercise real behavior rather than skip.
+      - name: Install system dependencies (Tesseract, poppler)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends tesseract-ocr poppler-utils
+
+      - name: Install Python dependencies
+        run: pip install --no-cache-dir -r requirements.txt
+
+      - name: Run Alembic migrations against real PostgreSQL
+        run: |
+          alembic upgrade head
+          alembic check
+
+      - name: Run backend test suite
+        run: pytest -q
+
+  frontend:
+    name: Frontend (lint + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: npm ci
+        run: npm ci
+
+      - name: npm run lint
+        run: npm run lint
+
+      - name: npm run build
+        run: npm run build
+
+  docker:
+    name: Docker (Compose config + image builds)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate docker-compose.yml (config + interpolation only)
+        run: |
+          # A minimal .env satisfies docker-compose.yml's `env_file:
+          # ./backend/.env` reference (Compose requires the file to
+          # exist even just to validate config) — real values are never
+          # needed for `config`, which doesn't start anything.
+          cp backend/.env.example backend/.env
+          docker compose config --quiet
+
+      - name: Build backend image
+        run: docker build -t veridoc-backend:ci ./backend
+
+      - name: Build frontend image
+        run: docker build -t veridoc-frontend:ci ./frontend

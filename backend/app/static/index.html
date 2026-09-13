@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Veridoc — Document Intelligence API</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: -apple-system, Segoe UI, sans-serif; max-width: 640px; margin: 80px auto; color: #1a1a1a; line-height: 1.5; }
+    code { background: #f2f2f2; padding: 2px 6px; border-radius: 4px; }
+    a { color: #2563eb; }
+  </style>
+</head>
+<body>
+  <h1>Veridoc</h1>
+  <p>
+    This is the backend API, running standalone. The full product UI —
+    chat, document library, upload — is the Next.js app in
+    <code>../frontend</code> (see its README to run it); this page is just
+    a dependency-free fallback for hitting the API directly.
+  </p>
+  <p>API surface:</p>
+  <ul>
+    <li><a href="/docs">/docs</a> — interactive API docs (Swagger UI)</li>
+    <li><code>GET /health</code>, <code>GET /ready</code></li>
+    <li><code>POST /ask</code></li>
+    <li><code>POST /documents/upload</code>, <code>GET /documents</code></li>
+  </ul>
+</body>
+</html>

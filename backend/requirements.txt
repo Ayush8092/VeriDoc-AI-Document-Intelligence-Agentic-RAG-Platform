@@ -1,0 +1,96 @@
+# --- Web framework -----------------------------------------------------
+fastapi>=0.115,<1.0
+uvicorn[standard]>=0.30,<1.0
+pydantic>=2.7,<3.0
+pydantic-settings>=2.4,<3.0
+python-multipart>=0.0.9,<1.0
+
+# --- RAG / LLM orchestration --------------------------------------------
+langgraph>=0.2,<1.0
+langchain-core>=0.3,<1.0
+google-genai>=1.0,<2.0
+groq>=0.11,<1.0
+pinecone>=5.0,<8.0
+langchain-groq>=0.2,<1.0
+
+# --- Document parsing / OCR ---------------------------------------------
+pypdf>=4.0,<6.0
+pdfplumber>=0.11,<1.0
+python-docx>=1.0,<2.0
+pytesseract>=0.3.10,<1.0
+pdf2image>=1.17,<2.0
+Pillow>=10.0,<12.0
+# System dependencies (not installable via pip — see README.md "OCR system
+# dependencies"): tesseract-ocr, poppler-utils.
+
+# --- Database -------------------------------------------------------------
+SQLAlchemy>=2.0,<3.0
+psycopg2-binary>=2.9,<3.0   # PostgreSQL driver for production DATABASE_URL
+
+# --- Misc -----------------------------------------------------------------
+numpy>=1.26,<3.0
+python-dotenv>=1.0,<2.0
+httpx>=0.27,<1.0
+
+# --- Retrieval (Phase 3A: hybrid retrieval + cross-encoder reranking) -----
+# rank_bm25/whoosh are NOT used here — app/rag/bm25.py is a small
+# stdlib-only Okapi BM25 implementation shared by the reranker (over a
+# handful of already-retrieved chunks) and app/lexical_index.py (a
+# corpus-wide retriever fused with dense search via app/rag/fusion.py).
+# sentence-transformers is the one new dependency this phase adds, and
+# it's optional at runtime: app/rag/cross_encoder.py catches any
+# import/model-load failure and falls back to the BM25 reranker
+# automatically (CROSS_ENCODER_ENABLED can also just be set to false).
+sentence-transformers>=3.0,<4.0
+
+# --- Testing ----------------------------------------------------------------
+pytest>=8.0,<9.0
+pytest-asyncio>=0.24,<1.0
+reportlab>=4.0,<5.0   # test-only: generates a synthetic PDF fixture in tests/test_pdf_parser.py
+
+# --- Observability (Phase 3B) -----------------------------------------
+# opik is optional at runtime (Settings.opik_enabled defaults to False,
+# and app/observability/opik_integration.py degrades to an untraced call
+# if the import fails) but listed here so `pip install -r
+# requirements.txt` covers it out of the box. trulens-core/trulens-feedback
+# power app/evaluation/trulens_feedback.py's feedback functions, recorded
+# into a local SQLite session by default — no network/API key required
+# for the recording layer itself (the feedback-function LLM judge still
+# needs GROQ_API_KEY at call time, same as RAGAS).
+#
+# trulens-providers-litellm — Phase 7 completion pass: REQUIRED, not
+# optional, and was MISSING from this file before this pass, which meant
+# `app/evaluation/trulens_feedback.py::_require_trulens()`'s primary
+# import path (`from trulens.providers.litellm import LiteLLM`) failed
+# with `ModuleNotFoundError: No module named 'trulens.providers'` in a
+# clean install — confirmed by actually installing trulens-core/
+# trulens-feedback in isolation and running `_require_trulens()` for
+# real. `trulens.providers.litellm` ships as its own separate PyPI
+# package (`trulens-providers-litellm`), not bundled into trulens-core/
+# trulens-feedback the way the module's own docstring assumed. Installing
+# it resolved the import with zero conflicts (`pip check` clean
+# alongside the rest of this file) — TruLens genuinely does NOT need
+# RAGAS's isolated-venv treatment; it was just missing one direct
+# dependency.
+# RAGAS is intentionally NOT in this file — see requirements-ragas.txt
+# for why (a real, reproducible dependency conflict with this project's
+# pinned langgraph/langchain-core versions, found and documented rather
+# than silently worked around).
+opik>=1.0,<3.0
+trulens-core>=1.0,<3.0
+trulens-feedback>=1.0,<3.0
+trulens-providers-litellm>=1.0,<3.0
+
+# --- Authentication (Phase 5) -------------------------------------------
+# bcrypt: password hashing (app/security/auth.py). PyJWT: access-token
+# issuance/verification. Both are widely-used, minimal, single-purpose
+# libraries rather than a bigger auth framework — Phase 5's own spec asks
+# for "a proper authentication foundation", not a replacement for the
+# existing architecture.
+bcrypt>=4.0,<5.0
+PyJWT>=2.8,<3.0
+email-validator>=2.0,<3.0
+
+
+boto3>=1.34,<2.0
+redis>=5.0,<6.0

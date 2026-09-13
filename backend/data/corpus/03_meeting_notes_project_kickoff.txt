@@ -1,0 +1,20 @@
+Project Kickoff Notes — Atlas Migration (fictional)
+Date: March 4th
+
+Attendees: project lead, backend engineer, QA lead, product manager.
+
+The team agreed to migrate the reporting service from the legacy batch
+pipeline to the new streaming pipeline over three phases. Phase 1 covers
+the ingestion layer and is targeted for completion by the end of the
+first sprint. Phase 2 covers the transformation layer. Phase 3 covers
+cutting reporting dashboards over to the new pipeline and decommissioning
+the legacy batch jobs.
+
+The QA lead raised a concern about test coverage for the transformation
+layer and requested an additional week be added to Phase 2 for
+integration testing. The project lead agreed to add the extra week.
+
+Open item: the product manager will confirm with the data platform team
+whether the streaming pipeline's retention window (currently 7 days) is
+sufficient for the reporting dashboards' needs, and report back before
+Phase 3 begins.
