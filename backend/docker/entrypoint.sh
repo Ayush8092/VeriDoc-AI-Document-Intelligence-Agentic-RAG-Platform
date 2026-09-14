@@ -20,4 +20,15 @@ if [ "${RUN_MIGRATIONS_ON_START:-0}" = "1" ]; then
     alembic upgrade head
 fi
 
+# Render (and some other PaaS hosts) inject PORT at runtime and route
+# traffic to whatever port the app actually listens on — it does NOT
+# match the CMD's hardcoded 8000 by default. When the command being
+# run is uvicorn, append an explicit --port using $PORT if set,
+# falling back to 8000 for local/docker-compose use where PORT isn't
+# set. Non-uvicorn commands (e.g. `alembic upgrade head` for the
+# one-shot `migrate` service in docker-compose.yml) are left untouched.
+if [ "$1" = "uvicorn" ]; then
+    exec "$@" --port "${PORT:-8000}"
+fi
+
 exec "$@"
