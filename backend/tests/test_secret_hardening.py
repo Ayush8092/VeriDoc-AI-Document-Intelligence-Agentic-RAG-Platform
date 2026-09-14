@@ -10,20 +10,26 @@ import pytest
 from app.security.auth import InsecureSecretError, assert_secret_is_safe_for_environment
 
 
-def _settings(**overrides):
+def _settings(monkeypatch=None, **overrides):
     from app.core.config import Settings
 
+    if monkeypatch is not None:
+        # CI sets a real JWT_SECRET_KEY at the job level for other steps
+        # (e.g. the S3 integration tests); clear it here so these tests
+        # actually exercise Settings' own class default rather than
+        # whatever the runner happens to have exported.
+        monkeypatch.delenv("JWT_SECRET_KEY", raising=False)
     return Settings(**overrides)
 
 
-def test_default_environment_is_development_and_permissive():
-    settings = _settings()
+def test_default_environment_is_development_and_permissive(monkeypatch):
+    settings = _settings(monkeypatch)
     assert settings.environment == "development"
     assert_secret_is_safe_for_environment(settings)  # must not raise
 
 
-def test_production_with_default_secret_raises():
-    settings = _settings(environment="production")
+def test_production_with_default_secret_raises(monkeypatch):
+    settings = _settings(monkeypatch, environment="production")
     with pytest.raises(InsecureSecretError):
         assert_secret_is_safe_for_environment(settings)
 

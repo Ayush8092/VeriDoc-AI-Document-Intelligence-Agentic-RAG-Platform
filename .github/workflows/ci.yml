@@ -95,7 +95,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends tesseract-ocr poppler-utils
 
       - name: Install Python dependencies
-        run: pip install --no-cache-dir -r requirements.txt
+        run: pip install --no-cache-dir -r requirements-dev.txt
 
       - name: Run Alembic migrations against real PostgreSQL
         run: |

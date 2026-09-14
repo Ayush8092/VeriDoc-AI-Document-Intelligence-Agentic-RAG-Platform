@@ -37,7 +37,7 @@ FROM node:22-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 
-RUN useradd --create-home --uid 1000 veridoc
+RUN useradd --create-home --uid 1001 veridoc
 
 # Next.js standalone output: a self-contained server.js plus only the
 # node_modules it actually traced as used at runtime — see
