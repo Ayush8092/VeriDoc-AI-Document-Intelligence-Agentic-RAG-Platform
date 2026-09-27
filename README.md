@@ -4,6 +4,8 @@ Document intelligence over scanned PDFs, tables, charts, and mixed-format archiv
 
 Most RAG demos stop at "retrieve, then generate." The part that's actually hard — and the part most portfolio projects skip — is deciding when *not* to answer, and proving that the answers you do give are grounded rather than merely plausible. That's what most of this codebase is actually about.
 
+Link - https://veri-doc-ai-document-intelligence-a.vercel.app/ask
+
 ## Architecture
 
 ![System Architecture](System%20Architecture.svg)
