@@ -61,14 +61,26 @@ export default function UploadPage() {
 
     try {
       const response = await uploadDocuments(toUpload.map((i) => i.file));
+      
+      console.log("UPLOAD RESPONSE:", response);
+      console.log("UPLOADED FILE NAMES:", toUpload.map((i) => i.file.name));
+      console.log("JOBS:", response.jobs);
+      console.log("JOB FILENAMES:", response.jobs.map((j) => j.filename));
+      
       const rejectedByName = new Map(response.rejected.map((r) => [r.filename, r.error]));
       const jobByName = new Map(response.jobs.map((j) => [j.filename, j.job_id]));
+      console.log("JOB MAP:", jobByName);
 
       setItems((prev) =>
         prev.map((i) => {
           if (!toUpload.some((q) => q.id === i.id)) return i;
           const err = rejectedByName.get(i.file.name);
           if (err) return { ...i, status: "rejected", error: err };
+          console.log("LOOKING FOR JOB:", {
+            frontendFilename: i.file.name,
+            jobId: jobByName.get(i.file.name),
+          });
+          
           const jobId = jobByName.get(i.file.name);
           // Every accepted file has a job — see UploadResponse's
           // backend contract. If one is somehow missing (shouldn't
