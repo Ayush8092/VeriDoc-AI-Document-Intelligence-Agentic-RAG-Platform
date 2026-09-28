@@ -71,8 +71,12 @@ export default function UploadPage() {
           .replace(/^_|_$/g, "");
 
       
-      const rejectedByName = new Map(response.rejected.map((r) => [r.filename, r.error]));
-      const jobByName = new Map(response.jobs.map((job) => [normalizeFilename(job.filename, job.job_id]));
+      const rejectedByName = new Map(
+        response.rejected.map((r) => [r.filename, r.error]),
+      );
+      const jobByName = new Map(
+        response.jobs.map((job) => [normalizeFilename(job.filename), job.job_id]),
+      );
 
       setItems((prev) =>
         prev.map((i) => {
