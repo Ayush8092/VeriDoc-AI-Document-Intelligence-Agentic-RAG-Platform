@@ -62,14 +62,17 @@ export default function UploadPage() {
     try {
       const response = await uploadDocuments(toUpload.map((i) => i.file));
       
-      console.log("UPLOAD RESPONSE:", response);
-      console.log("UPLOADED FILE NAMES:", toUpload.map((i) => i.file.name));
-      console.log("JOBS:", response.jobs);
-      console.log("JOB FILENAMES:", response.jobs.map((j) => j.filename));
+      const normalizeFilename = (name: string) =>
+        name
+          .normalize("NFKC")
+          .toLowerCase()
+          .replace(/[^a-z0-9.]+/g, "_")
+          .replace(/_+/g, "_")
+          .replace(/^_|_$/g, "");
+
       
       const rejectedByName = new Map(response.rejected.map((r) => [r.filename, r.error]));
-      const jobByName = new Map(response.jobs.map((j) => [j.filename, j.job_id]));
-      console.log("JOB MAP:", jobByName);
+      const jobByName = new Map(response.jobs.map((job) => [normalizeFilename(job.filename, job.job_id]));
 
       setItems((prev) =>
         prev.map((i) => {
@@ -81,14 +84,14 @@ export default function UploadPage() {
             jobId: jobByName.get(i.file.name),
           });
           
-          const jobId = jobByName.get(i.file.name);
+          const jobId = jobByName.get(normalizeFilename(i.file.name));
           // Every accepted file has a job — see UploadResponse's
           // backend contract. If one is somehow missing (shouldn't
           // happen), fall back to an explicit error rather than silently
           // stalling at "uploading" forever.
-          return jobId
+          return jobId !=null
             ? { ...i, status: "queued", jobId }
-            : { ...i, status: "failed", error: "Accepted, but no job id was returned." };
+            : { ...i, status: "failed", error: "Accepted, but no matching job ID was returned." };
         }),
       );
     } catch (err) {
